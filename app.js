@@ -7,7 +7,7 @@
   'use strict';
 
   var API_URL = (window.MJ_CONFIG || {}).API_URL;
-  var LS = { token: 'mj_token', cache: 'mj_cache_v1', install: 'mj_install_dismissed', tab: 'mj_tab' };
+  var LS = { token: 'mj_token', cache: 'mj_cache_v1', install: 'mj_install_dismissed', tab: 'mj_tab', opp: 'mj_compare' };
   var BT_LABEL = { ML: 'Moneyline', Spread: 'Spread', OU: 'Total' };
   var BT_SHORT = { ML: 'ML', Spread: 'SPR', OU: 'O/U' };
   var PLAYER_COLORS = ['#3DDC97', '#F5B451', '#7AA7FF', '#F07AB4', '#B79CFF', '#5ED3E6', '#FF8A65', '#C5E063'];
@@ -208,6 +208,21 @@
     return out;
   }
 
+  /** This week's result for one of my bets: {status, net, toWin} or null. */
+  function resultFor(gameId, bt) {
+    var tw = state.data && state.data.thisWeek;
+    if (!tw) return null;
+    return tw.mine.filter(function (b) { return b.gameId === gameId && b.betType === bt; })[0] || null;
+  }
+  function resultText(r) {
+    if (!r) return null;
+    if (r.status === 'win') return { cls: 'up', text: 'Won ' + money(r.net, { cents: true }) };
+    if (r.status === 'loss') return { cls: 'down', text: 'Lost ' + money(Math.abs(r.net), { cents: true }) };
+    if (r.status === 'push') return { cls: 'even', text: 'Push · refunded' };
+    if (r.toWin) return { cls: 'even', text: (r.status === 'live' ? 'Live · to win ' : 'To win ') + money(r.toWin, { cents: true }) };
+    return null;
+  }
+
   function priceOf(g, bt, side) {
     var m = g.markets[bt]; if (!m) return null;
     var o = m.options.filter(function (x) { return x.side === side; })[0];
@@ -222,12 +237,14 @@
     };
     var badges = [];
     if (g.started) badges.push(h('span', { class: 'pill gray', text: 'Locked' }));
-    if (g.anyMoved) badges.push(h('span', { class: 'pill amber', text: 'Line moved' }));
+    if (g.anyMoved && !g.started) badges.push(h('span', { class: 'pill amber', text: 'Line moved' }));
     if (g.anyBet) badges.push(h('span', { class: 'pill mint', text: 'Your pick' }));
     var mine = [];
     ['ML', 'Spread', 'OU'].forEach(function (bt) {
       var bet = g.bets[bt]; if (!bet) return;
-      mine.push(h('div', { class: 'my-bet' }, h('span', { text: BT_SHORT[bt] + ' · ' + bet.pickText }), h('span', { class: 'num', text: money(bet.wager) })));
+      var rt = resultText(resultFor(g.id, bt));
+      mine.push(h('div', { class: 'my-bet' }, h('span', { text: BT_SHORT[bt] + ' · ' + bet.pickText }),
+        h('span', { class: 'my-amt num' }, h('span', { text: money(bet.wager, { cents: true }) }), rt ? h('span', { class: 'my-res ' + rt.cls, text: rt.text }) : null)));
     });
     return h('button', { class: 'game' + (g.anyBet ? ' mine' : '') + (g.started ? ' locked' : ''), type: 'button', onclick: function () { openGame(g.id); } },
       h('div', { class: 'game-top' }, h('span', { class: 'game-time', text: g.timeLabel || g.dayLabel }), h('span', { style: 'display:flex;gap:6px' }, badges)),
@@ -272,7 +289,11 @@
     function drawEditor() {
       editor.textContent = '';
       if (g.started) {
-        if (bet) editor.appendChild(h('div', { class: 'payout' }, 'Locked: ', h('b', { text: bet.pickText }), ' · ' + money(bet.wager)));
+        if (bet) {
+          var rt = resultText(resultFor(g.id, bt));
+          editor.appendChild(h('div', { class: 'payout' }, 'Locked: ', h('b', { text: bet.pickText }), ' · ' + money(bet.wager, { cents: true }) + ' bet',
+            rt ? h('div', { class: 'my-res ' + rt.cls, style: 'margin-top:4px', text: rt.text }) : null));
+        }
         return;
       }
       if (!sel.side) return;
@@ -447,7 +468,7 @@
     P.forEach(function (p) {
       var st = p.streak && p.streak.kind ? (p.streak.kind === 'w' ? 'W' : 'L') + p.streak.n : '—';
       var hot = p.streak && p.streak.kind === 'w' && p.streak.n >= 3;
-      out.push(h('button', { class: 'player' + (p.name === me ? ' me' : ''), type: 'button', onclick: function () { state.opp = p.name === me ? null : p.name; go('stats'); } },
+      out.push(h('button', { class: 'player' + (p.name === me ? ' me' : ''), type: 'button', onclick: function () { state.opp = p.name === me ? null : p.name; lsSet(LS.opp, state.opp || ''); go('stats'); } },
         h('div', { class: 'p-top' },
           h('span', { class: 'rank' + (p.rank === 1 ? ' first' : ''), text: String(p.rank) }),
           avatar(p.name),
@@ -474,7 +495,7 @@
     var P = s.players;
     var me = P.filter(function (p) { return p.name === meName; })[0] || P[0];
     var others = P.filter(function (p) { return p.name !== me.name; });
-    if (!state.opp || !others.some(function (p) { return p.name === state.opp; })) state.opp = others.length ? (me.rank === 1 ? others[0].name : P[0].name === me.name ? others[0].name : P[0].name) : null;
+    if (state.opp && !others.some(function (p) { return p.name === state.opp; })) state.opp = null; // null = just my stats
     var opp = P.filter(function (p) { return p.name === state.opp; })[0] || null;
     var lg = {
       bankroll: avgOf(P.map(function (p) { return p.bankroll; })),
@@ -485,11 +506,12 @@
       Total: avgOf(P.map(function (p) { return typeWinPct(p.byType.Total || { w: 0, l: 0 }); }))
     };
 
-    var out = [h('div', { class: 'section-title', text: 'Head to head' })];
+    var out = [h('div', { class: 'section-title', text: opp ? 'Head to head' : 'Your stats' })];
     if (others.length) {
-      var select = h('select', { 'aria-label': 'Compare with', onchange: function (e) { state.opp = e.target.value; render(); } });
-      others.forEach(function (p) { var o = h('option', { value: p.name, text: p.name }); if (opp && p.name === opp.name) o.selected = true; select.appendChild(o); });
-      out.push(h('div', { class: 'vs' }, h('b', { text: me.name + ' (you)' }), h('span', { class: 'muted', text: 'vs' }), select));
+      var select = h('select', { 'aria-label': 'Compare with', onchange: function (e) { state.opp = e.target.value || null; lsSet(LS.opp, state.opp || ''); render(); } });
+      var none = h('option', { value: '', text: 'Just me' }); if (!opp) none.selected = true; select.appendChild(none);
+      others.forEach(function (p) { var o = h('option', { value: p.name, text: 'vs ' + p.name }); if (opp && p.name === opp.name) o.selected = true; select.appendChild(o); });
+      out.push(h('div', { class: 'vs' }, h('b', { text: me.name + (opp ? ' (you)' : '') }), select));
     }
 
     var rows = [
@@ -590,6 +612,7 @@
   state.token = readToken();
   var savedTab = lsGet(LS.tab);
   if (savedTab && /^(picks|week|chat|standings|stats)$/.test(savedTab)) state.tab = savedTab;
+  state.opp = lsGet(LS.opp) || null;
   if (!state.token) { renderNoToken(); return; }
   try {
     var cached = JSON.parse(lsGet(LS.cache) || 'null');
