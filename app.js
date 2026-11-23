@@ -197,9 +197,15 @@
         h('p', { text: d.week === 22 ? 'The Super Bowl board opens once the books post lines.' : 'This week\'s games appear after the next odds refresh.' })));
       return out;
     }
-    if (b.movedCount) out.push(h('div', { class: 'card notice', style: 'margin-top:10px;border-color:#5a4520' },
+    // Only bets you can still update count: once a game kicks off its line no longer matters.
+    var movedOpen = 0;
+    b.games.forEach(function (g) {
+      if (g.started) return;
+      ['ML', 'Spread', 'OU'].forEach(function (bt) { if (g.bets[bt] && g.bets[bt].movement) movedOpen++; });
+    });
+    if (movedOpen) out.push(h('div', { class: 'card notice', style: 'margin-top:10px;border-color:#5a4520' },
       h('span', { class: 'pill amber', text: 'Line moved' }),
-      h('span', { class: 'small muted', text: b.movedCount + (b.movedCount === 1 ? ' of your bets has' : ' of your bets have') + ' a new line. Your locked line still counts; tap the game to update.' })));
+      h('span', { class: 'small muted', text: movedOpen + (movedOpen === 1 ? ' of your bets has' : ' of your bets have') + ' a new line. Your locked line still counts; tap the game to update.' })));
     var lastDay = null;
     b.games.forEach(function (g) {
       if (g.dayLabel !== lastDay) { out.push(h('div', { class: 'day', text: g.dayLabel })); lastDay = g.dayLabel; }
@@ -521,7 +527,7 @@
       ['ROI', me.roi, opp && opp.roi, lg.roi, signPct, 1],
       ['Moneyline win %', typeWinPct(me.byType.ML), opp && typeWinPct(opp.byType.ML), lg.ML, pct, 1],
       ['Spread win %', typeWinPct(me.byType.Spread), opp && typeWinPct(opp.byType.Spread), lg.Spread, pct, 1],
-      ['Total win %', typeWinPct(me.byType.Total), opp && typeWinPct(opp.byType.Total), lg.Total, pct, 1],
+      ['O/U Total win %', typeWinPct(me.byType.Total), opp && typeWinPct(opp.byType.Total), lg.Total, pct, 1],
       ['Bets graded', me.bets, opp && opp.bets, null, String, 0]
     ];
     var table = h('table', { class: 'h2h' }, h('thead', null, h('tr', null, h('th', { text: '' }), h('th', { text: 'You' }), opp ? h('th', { text: opp.name }) : null, h('th', { text: 'League' }))));
@@ -546,7 +552,7 @@
     out.push(h('div', { class: 'section-title', text: 'Your highlights' }));
     var types = ['ML', 'Spread', 'Total'].map(function (t) { var x = me.byType[t] || { w: 0, l: 0, net: 0, wagered: 0 }; return { t: t, net: x.net, roi: x.wagered ? x.net / x.wagered : null, n: x.w + x.l + (x.p || 0) }; }).filter(function (x) { return x.n > 0; });
     types.sort(function (a, b) { return b.net - a.net; });
-    var label = function (t) { return t === 'ML' ? 'Moneyline' : t; };
+    var label = function (t) { return t === 'ML' ? 'Moneyline' : t === 'Total' ? 'O/U Total' : t; };
     out.push(h('div', { class: 'hl' },
       hlBox('Biggest win', me.best ? money(me.best.net, { signed: true, cents: true }) : '—', me.best ? me.best.pick + ' · wk ' + me.best.week : ''),
       hlBox('Biggest loss', me.worst ? money(me.worst.net, { signed: true, cents: true }) : '—', me.worst ? me.worst.pick + ' · wk ' + me.worst.week : ''),
