@@ -208,6 +208,21 @@
     return out;
   }
 
+  /** This week's result for one of my bets: {status, net, toWin} or null. */
+  function resultFor(gameId, bt) {
+    var tw = state.data && state.data.thisWeek;
+    if (!tw) return null;
+    return tw.mine.filter(function (b) { return b.gameId === gameId && b.betType === bt; })[0] || null;
+  }
+  function resultText(r) {
+    if (!r) return null;
+    if (r.status === 'win') return { cls: 'up', text: 'Won ' + money(r.net, { cents: true }) };
+    if (r.status === 'loss') return { cls: 'down', text: 'Lost ' + money(Math.abs(r.net), { cents: true }) };
+    if (r.status === 'push') return { cls: 'even', text: 'Push · refunded' };
+    if (r.toWin) return { cls: 'even', text: (r.status === 'live' ? 'Live · to win ' : 'To win ') + money(r.toWin, { cents: true }) };
+    return null;
+  }
+
   function priceOf(g, bt, side) {
     var m = g.markets[bt]; if (!m) return null;
     var o = m.options.filter(function (x) { return x.side === side; })[0];
@@ -222,12 +237,14 @@
     };
     var badges = [];
     if (g.started) badges.push(h('span', { class: 'pill gray', text: 'Locked' }));
-    if (g.anyMoved) badges.push(h('span', { class: 'pill amber', text: 'Line moved' }));
+    if (g.anyMoved && !g.started) badges.push(h('span', { class: 'pill amber', text: 'Line moved' }));
     if (g.anyBet) badges.push(h('span', { class: 'pill mint', text: 'Your pick' }));
     var mine = [];
     ['ML', 'Spread', 'OU'].forEach(function (bt) {
       var bet = g.bets[bt]; if (!bet) return;
-      mine.push(h('div', { class: 'my-bet' }, h('span', { text: BT_SHORT[bt] + ' · ' + bet.pickText }), h('span', { class: 'num', text: money(bet.wager) })));
+      var rt = resultText(resultFor(g.id, bt));
+      mine.push(h('div', { class: 'my-bet' }, h('span', { text: BT_SHORT[bt] + ' · ' + bet.pickText }),
+        h('span', { class: 'my-amt num' }, h('span', { text: money(bet.wager, { cents: true }) }), rt ? h('span', { class: 'my-res ' + rt.cls, text: rt.text }) : null)));
     });
     return h('button', { class: 'game' + (g.anyBet ? ' mine' : '') + (g.started ? ' locked' : ''), type: 'button', onclick: function () { openGame(g.id); } },
       h('div', { class: 'game-top' }, h('span', { class: 'game-time', text: g.timeLabel || g.dayLabel }), h('span', { style: 'display:flex;gap:6px' }, badges)),
@@ -272,7 +289,11 @@
     function drawEditor() {
       editor.textContent = '';
       if (g.started) {
-        if (bet) editor.appendChild(h('div', { class: 'payout' }, 'Locked: ', h('b', { text: bet.pickText }), ' · ' + money(bet.wager)));
+        if (bet) {
+          var rt = resultText(resultFor(g.id, bt));
+          editor.appendChild(h('div', { class: 'payout' }, 'Locked: ', h('b', { text: bet.pickText }), ' · ' + money(bet.wager, { cents: true }) + ' bet',
+            rt ? h('div', { class: 'my-res ' + rt.cls, style: 'margin-top:4px', text: rt.text }) : null));
+        }
         return;
       }
       if (!sel.side) return;

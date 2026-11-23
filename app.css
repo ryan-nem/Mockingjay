@@ -103,6 +103,9 @@ main { padding: 0 14px calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 24px
 .teams .hd { font-size: 11px; color: var(--faint); text-align: right; text-transform: uppercase; letter-spacing: .4px; }
 .my-bets { margin-top: 10px; display: flex; flex-direction: column; gap: 4px; }
 .my-bet { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; color: var(--mint); }
+.my-amt { display: flex; flex-direction: column; align-items: flex-end; flex: 0 0 auto; }
+.my-res { font-size: 12px; font-weight: 600; }
+.my-res.up { color: var(--mint); } .my-res.down { color: var(--red); } .my-res.even { color: var(--muted); }
 
 /* bottom sheet */
 .sheet { position: fixed; inset: 0; z-index: 20; background: rgba(0,0,0,.55); display: flex; align-items: flex-end; justify-content: center; }
