@@ -100,6 +100,7 @@ main { padding: 0 14px calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 24px
 .teams { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; gap: 4px 10px; align-items: center; font-size: 15px; }
 .teams .tn { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .teams .od { font-size: 13px; color: var(--muted); text-align: right; min-width: 52px; }
+.teams .hd2 { line-height: 1.15; align-self: end; }
 .teams .hd { font-size: 11px; color: var(--faint); text-align: right; text-transform: uppercase; letter-spacing: .4px; }
 .my-bets { margin-top: 10px; display: flex; flex-direction: column; gap: 4px; }
 .my-bet { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; color: var(--mint); }

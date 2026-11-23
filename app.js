@@ -8,7 +8,7 @@
 
   var API_URL = (window.MJ_CONFIG || {}).API_URL;
   var LS = { token: 'mj_token', cache: 'mj_cache_v1', install: 'mj_install_dismissed', tab: 'mj_tab', opp: 'mj_compare' };
-  var BT_LABEL = { ML: 'Moneyline', Spread: 'Spread', OU: 'Total' };
+  var BT_LABEL = { ML: 'Moneyline', Spread: 'Spread', OU: 'O/U Total' };
   var BT_SHORT = { ML: 'ML', Spread: 'SPR', OU: 'O/U' };
   var PLAYER_COLORS = ['#3DDC97', '#F5B451', '#7AA7FF', '#F07AB4', '#B79CFF', '#5ED3E6', '#FF8A65', '#C5E063'];
 
@@ -249,7 +249,7 @@
     return h('button', { class: 'game' + (g.anyBet ? ' mine' : '') + (g.started ? ' locked' : ''), type: 'button', onclick: function () { openGame(g.id); } },
       h('div', { class: 'game-top' }, h('span', { class: 'game-time', text: g.timeLabel || g.dayLabel }), h('span', { style: 'display:flex;gap:6px' }, badges)),
       h('div', { class: 'teams' },
-        h('span', { class: 'hd', style: 'text-align:left' }, ''), h('span', { class: 'hd', text: 'Spread' }), h('span', { class: 'hd', text: 'ML' }), h('span', { class: 'hd', text: 'Total' }),
+        h('span', { class: 'hd', style: 'text-align:left' }, ''), h('span', { class: 'hd', text: 'Spread' }), h('span', { class: 'hd', text: 'ML' }), h('span', { class: 'hd hd2' }, 'O/U', h('br'), 'Total'),
         cells('Away', g.away), cells('Home', g.home)),
       mine.length ? h('div', { class: 'my-bets' }, mine) : null);
   }
@@ -521,7 +521,7 @@
       ['ROI', me.roi, opp && opp.roi, lg.roi, signPct, 1],
       ['Moneyline win %', typeWinPct(me.byType.ML), opp && typeWinPct(opp.byType.ML), lg.ML, pct, 1],
       ['Spread win %', typeWinPct(me.byType.Spread), opp && typeWinPct(opp.byType.Spread), lg.Spread, pct, 1],
-      ['Total win %', typeWinPct(me.byType.Total), opp && typeWinPct(opp.byType.Total), lg.Total, pct, 1],
+      ['O/U Total win %', typeWinPct(me.byType.Total), opp && typeWinPct(opp.byType.Total), lg.Total, pct, 1],
       ['Bets graded', me.bets, opp && opp.bets, null, String, 0]
     ];
     var table = h('table', { class: 'h2h' }, h('thead', null, h('tr', null, h('th', { text: '' }), h('th', { text: 'You' }), opp ? h('th', { text: opp.name }) : null, h('th', { text: 'League' }))));
@@ -546,7 +546,7 @@
     out.push(h('div', { class: 'section-title', text: 'Your highlights' }));
     var types = ['ML', 'Spread', 'Total'].map(function (t) { var x = me.byType[t] || { w: 0, l: 0, net: 0, wagered: 0 }; return { t: t, net: x.net, roi: x.wagered ? x.net / x.wagered : null, n: x.w + x.l + (x.p || 0) }; }).filter(function (x) { return x.n > 0; });
     types.sort(function (a, b) { return b.net - a.net; });
-    var label = function (t) { return t === 'ML' ? 'Moneyline' : t; };
+    var label = function (t) { return t === 'ML' ? 'Moneyline' : t === 'Total' ? 'O/U Total' : t; };
     out.push(h('div', { class: 'hl' },
       hlBox('Biggest win', me.best ? money(me.best.net, { signed: true, cents: true }) : '—', me.best ? me.best.pick + ' · wk ' + me.best.week : ''),
       hlBox('Biggest loss', me.worst ? money(me.worst.net, { signed: true, cents: true }) : '—', me.worst ? me.worst.pick + ' · wk ' + me.worst.week : ''),
