@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src https://script.google.com https://script.googleusercontent.com; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#0F1318">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Mockingjay">
+<meta name="application-name" content="Mockingjay">
+<title>Mockingjay</title>
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&display=swap">
+<link rel="stylesheet" href="app.css?v=1">
+</head>
+<body>
+<div id="app">
+  <header class="top">
+    <div class="brand">
+      <img src="icons/icon-180.png" alt="" class="brand-icon" width="40" height="40">
+      <div>
+        <h1>Mockingjay</h1>
+        <p class="tagline">May the odds…</p>
+      </div>
+    </div>
+    <button class="funds" id="funds" type="button" aria-label="Your bankroll">
+      <span class="funds-label">Available</span>
+      <span class="funds-value" id="funds-value">—</span>
+    </button>
+  </header>
+  <div class="weekbar" id="weekbar" hidden>
+    <span id="week-label"></span>
+    <span class="meter" id="meter" aria-label="Wagers used"></span>
+    <button class="refresh" id="refresh" type="button" aria-label="Refresh">
+      <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.34 5.66M20 4v7h-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+  </div>
+  <main id="view" tabindex="-1"></main>
+  <nav class="tabbar" aria-label="Sections">
+    <button type="button" data-tab="picks" aria-current="page">
+      <span class="ti"><svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="12" rx="9.5" ry="6" transform="rotate(-35 12 12)" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M9.5 12.5l5-3M10.4 10.1l1.2 1.7M12.1 9.1l1.2 1.7M11.2 11.8l1.2 1.7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span>
+      <span class="tl">Picks</span>
+    </button>
+    <button type="button" data-tab="week">
+      <span class="ti"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M3.5 10h17M8 3v4M16 3v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="15.5" cy="15" r="1.6" fill="currentColor"/></svg></span>
+      <span class="tl">This Week</span>
+    </button>
+    <button type="button" data-tab="chat">
+      <span class="ti"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 7 0 1 1 3.4 5.7L4 19l1-3.5A6.7 6.7 0 0 1 4 12z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg></span>
+      <span class="tl">Chat</span>
+    </button>
+    <button type="button" data-tab="standings">
+      <span class="ti"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4h8v5a4 4 0 0 1-8 0V4zM8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M8.5 20h7M10 17h4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+      <span class="tl">Standings</span>
+    </button>
+    <button type="button" data-tab="stats">
+      <span class="ti"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19h16M5 15l4-4 3 3 6-7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+      <span class="tl">Stats</span>
+    </button>
+  </nav>
+</div>
+<div id="sheet" class="sheet" hidden></div>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+<script src="config.js?v=1"></script>
+<script src="app.js?v=1"></script>
+</body>
+</html>
