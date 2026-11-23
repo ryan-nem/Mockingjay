@@ -197,9 +197,15 @@
         h('p', { text: d.week === 22 ? 'The Super Bowl board opens once the books post lines.' : 'This week\'s games appear after the next odds refresh.' })));
       return out;
     }
-    if (b.movedCount) out.push(h('div', { class: 'card notice', style: 'margin-top:10px;border-color:#5a4520' },
+    // Only bets you can still update count: once a game kicks off its line no longer matters.
+    var movedOpen = 0;
+    b.games.forEach(function (g) {
+      if (g.started) return;
+      ['ML', 'Spread', 'OU'].forEach(function (bt) { if (g.bets[bt] && g.bets[bt].movement) movedOpen++; });
+    });
+    if (movedOpen) out.push(h('div', { class: 'card notice', style: 'margin-top:10px;border-color:#5a4520' },
       h('span', { class: 'pill amber', text: 'Line moved' }),
-      h('span', { class: 'small muted', text: b.movedCount + (b.movedCount === 1 ? ' of your bets has' : ' of your bets have') + ' a new line. Your locked line still counts; tap the game to update.' })));
+      h('span', { class: 'small muted', text: movedOpen + (movedOpen === 1 ? ' of your bets has' : ' of your bets have') + ' a new line. Your locked line still counts; tap the game to update.' })));
     var lastDay = null;
     b.games.forEach(function (g) {
       if (g.dayLabel !== lastDay) { out.push(h('div', { class: 'day', text: g.dayLabel })); lastDay = g.dayLabel; }
