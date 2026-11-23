@@ -7,7 +7,7 @@
   'use strict';
 
   var API_URL = (window.MJ_CONFIG || {}).API_URL;
-  var LS = { token: 'mj_token', cache: 'mj_cache_v1', install: 'mj_install_dismissed', tab: 'mj_tab', opp: 'mj_compare' };
+  var LS = { token: 'mj_token', cache: 'mj_cache_v1', install: 'mj_install_dismissed', tab: 'mj_tab', opp: 'mj_compare', profiles: 'mj_profiles_v1' };
   var BT_LABEL = { ML: 'Moneyline', Spread: 'Spread', OU: 'Total' };
   var BT_SHORT = { ML: 'ML', Spread: 'SPR', OU: 'O/U' };
   var PLAYER_COLORS = ['#3DDC97', '#F5B451', '#7AA7FF', '#F07AB4', '#B79CFF', '#5ED3E6', '#FF8A65', '#C5E063'];
@@ -62,12 +62,33 @@
   function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* private mode */ } }
   function clone(o) { return JSON.parse(JSON.stringify(o)); }
   function colorFor(name) {
+    var pr = typeof profiles !== 'undefined' && profiles[name];
+    if (pr && pr.color) return pr.color;
     var s = state.data && state.data.standings;
     var idx = 0;
     if (s && s.players) { var p = s.players.filter(function (x) { return x.name === name; })[0]; if (p) idx = p.slot; }
     return PLAYER_COLORS[idx % PLAYER_COLORS.length];
   }
-  function avatar(name) { return h('span', { class: 'avatar', style: 'background:' + colorFor(name), 'aria-hidden': 'true' }, String(name || '?').slice(0, 1).toUpperCase()); }
+  function avatar(name, size) {
+    var pr = (typeof profiles !== 'undefined' && profiles[name]) || {};
+    return avatarFrom(name, { emoji: pr.emoji, color: colorFor(name), photo: pr.photo }, size);
+  }
+  /** Photo if there is one, else emoji, else initial, on the player's color. */
+  function avatarFrom(name, p, size) {
+    var px = size || 34;
+    var el = h('span', { class: 'avatar', 'aria-hidden': 'true' });
+    el.style.width = px + 'px'; el.style.height = px + 'px'; el.style.borderRadius = (px / 2) + 'px';
+    el.style.background = p.color || '#3DDC97';
+    el.style.fontSize = Math.round(px * (p.emoji ? 0.55 : 0.42)) + 'px';
+    if (p.photo) {
+      var img = h('img', { src: p.photo, alt: '' });
+      el.style.boxShadow = '0 0 0 2px ' + (p.color || '#3DDC97');
+      el.appendChild(img);
+    } else {
+      el.textContent = p.emoji || String(name || '?').slice(0, 1).toUpperCase();
+    }
+    return el;
+  }
 
   // ---------- platform ----------
   var ua = navigator.userAgent || '';
@@ -110,6 +131,7 @@
       state.data = d; state.lastLoad = Date.now();
       lsSet(LS.cache, JSON.stringify({ at: Date.now(), token: state.token, data: d }));
       render();
+      afterLoad();
     }).catch(function (err) {
       if (!state.data) renderError(err.message);
       else if (!opts.quiet) toast(err.message, true);
@@ -128,6 +150,8 @@
     var d = state.data;
     if (!d) return;
     $('funds-value').textContent = money(d.funds.available, { whole: true });
+    $('funds-sub').textContent = d.funds.open > 0.004 ? money(d.funds.open, { whole: true }) + ' in play' : '';
+    $('funds-sub').hidden = !(d.funds.open > 0.004);
     $('weekbar').hidden = false;
     $('week-label').textContent = d.weekLabel;
     var m = $('meter'); m.textContent = '';
@@ -155,11 +179,12 @@
   }
 
   function renderNoToken() {
+    document.body.classList.add('bare');
     $('weekbar').hidden = true;
     var v = $('view'); v.textContent = '';
     v.appendChild(h('div', { class: 'empty' },
       h('h2', { text: 'Open your personal link' }),
-      h('p', { text: 'Mockingjay opens from the private link Ryan sent you. Tap it on this phone and the app will remember you.' })));
+      h('p', { text: 'Mockingjay opens from the private link Ryan sent you. Tap it on this phone and the app will remember you.' }), lostLinkCard()));
   }
 
   // ---------- install card ----------
@@ -597,6 +622,340 @@
     return wrap;
   }
 
+  // =========================================================
+  // ROUND 2A: profiles, avatars, welcome tour, invites, admin
+  // =========================================================
+  var EMOJI_PICKS = ['🏈', '🦅', '🐻', '🦁', '🐐', '💰', '🔥', '😈', '🦬', '🐴', '🐬', '⚡', '🏆', '🎯', '🧊', '🍀', '🦈', '🐯'];
+  var COLOR_PICKS = ['#3DDC97', '#F5B451', '#7AA7FF', '#F07AB4', '#B79CFF', '#5ED3E6', '#FF8A65', '#C5E063'];
+  var profiles = {};
+  try { var pc = JSON.parse(lsGet(LS.profiles) || 'null'); if (pc && pc.map) profiles = pc.map; } catch (e) { /* ignore */ }
+
+  function refreshProfiles(version) {
+    var pc = null; try { pc = JSON.parse(lsGet(LS.profiles) || 'null'); } catch (e) { pc = null; }
+    if (pc && pc.v === version && pc.token === state.token) return Promise.resolve();
+    return api('profiles').then(function (map) {
+      profiles = map || {};
+      lsSet(LS.profiles, JSON.stringify({ v: version, token: state.token, map: profiles }));
+      render();
+    }).catch(function () { /* avatars fall back to initials */ });
+  }
+
+  function afterLoad() {
+    var d = state.data;
+    if (!d) return;
+    if (d.profilesVersion) refreshProfiles(d.profilesVersion);
+    var meBtn = $('me'); if (meBtn) { meBtn.hidden = false; meBtn.textContent = ''; meBtn.appendChild(avatar(d.player, 32)); }
+    var ready = isStandalone || !isIOS; // on iPhone, set up after installing to the Home Screen
+    if (!ready || $('sheet').hidden === false || state.tourOn) return;
+    if (d.me && !d.me.exists && !state.profilePrompted) { state.profilePrompted = true; openProfile(true); return; }
+    if (d.me && !d.me.tour && sessionStorageGet('mj_tour_later') !== '1' && !state.tourShown) { state.tourShown = true; setTimeout(startTour, 350); }
+  }
+  function sessionStorageGet(k) { try { return sessionStorage.getItem(k); } catch (e) { return null; } }
+  function sessionStorageSet(k, v) { try { sessionStorage.setItem(k, v); } catch (e) { /* ignore */ } }
+
+  // ---------- profile sheet ----------
+  function sheetPanel(title, sub) {
+    var s = $('sheet'); s.textContent = ''; s.hidden = false;
+    var panel = h('div', { class: 'sheet-panel', role: 'dialog', 'aria-modal': 'true', 'aria-label': title });
+    panel.appendChild(h('div', { class: 'grab' }));
+    panel.appendChild(h('div', { class: 'sheet-head' },
+      h('div', null, h('h2', { text: title }), sub ? h('div', { class: 'muted small', text: sub }) : null),
+      h('button', { class: 'close', type: 'button', 'aria-label': 'Close', onclick: closeSheet }, '×')));
+    s.appendChild(panel);
+    s.onclick = function (e) { if (e.target === s) closeSheet(); };
+    return panel;
+  }
+
+  /** The avatar / emoji / color / photo picker, shared by the profile sheet and the join screen. */
+  function profileEditor(initial, onChange) {
+    var st = { emoji: initial.emoji || '', color: initial.color || COLOR_PICKS[0], photo: initial.photo || '' };
+    var wrap = h('div', { class: 'pe' });
+    var preview = h('div', { class: 'pe-preview' });
+    var err = h('div', { class: 'err', role: 'alert' });
+    function drawPreview() {
+      preview.textContent = '';
+      preview.appendChild(avatarFrom(initial.name || '?', st, 84));
+      onChange(st);
+    }
+    var file = h('input', { type: 'file', accept: 'image/*', class: 'visually-hidden', 'aria-label': 'Choose a photo' });
+    file.addEventListener('change', function () {
+      var f = file.files && file.files[0]; if (!f) return;
+      err.textContent = 'Preparing photo…';
+      shrinkPhoto(f).then(function (url) { st.photo = url; err.textContent = ''; drawPreview(); })
+        .catch(function () { err.textContent = 'Couldn\'t read that photo. Try another one.'; });
+    });
+    wrap.appendChild(h('div', { class: 'pe-top' }, preview, h('div', { class: 'pe-actions' },
+      h('button', { class: 'btn secondary', type: 'button', onclick: function () { file.click(); } }, 'Choose photo'),
+      h('button', { class: 'btn secondary', type: 'button', onclick: function () { st.photo = ''; drawPreview(); } }, 'Use emoji'),
+      file)));
+    var grid = h('div', { class: 'emoji-grid', role: 'group', 'aria-label': 'Emoji' });
+    EMOJI_PICKS.forEach(function (em) {
+      grid.appendChild(h('button', { type: 'button', class: 'emoji', 'aria-label': 'Use ' + em, onclick: function () { st.emoji = em; st.photo = ''; drawPreview(); } }, em));
+    });
+    var custom = h('input', { type: 'text', class: 'emoji-input', maxlength: '8', placeholder: 'Any emoji', 'aria-label': 'Type any emoji' });
+    custom.addEventListener('input', function () { var v = custom.value.trim(); if (v && !/[A-Za-z0-9]/.test(v)) { st.emoji = v; st.photo = ''; drawPreview(); } });
+    grid.appendChild(custom);
+    wrap.appendChild(h('div', { class: 'pe-label', text: 'Emoji' }));
+    wrap.appendChild(grid);
+    var colors = h('div', { class: 'color-row', role: 'group', 'aria-label': 'Color' });
+    COLOR_PICKS.forEach(function (c) {
+      var b = h('button', { type: 'button', class: 'swatch', 'aria-label': 'Color ' + c, onclick: function () { st.color = c; drawColors(); drawPreview(); } });
+      b.style.background = c; colors.appendChild(b);
+    });
+    function drawColors() { colors.querySelectorAll('.swatch').forEach(function (b, i) { b.setAttribute('aria-pressed', COLOR_PICKS[i] === st.color ? 'true' : 'false'); }); }
+    wrap.appendChild(h('div', { class: 'pe-label', text: 'Your color (frames your avatar and your line on charts)' }));
+    wrap.appendChild(colors);
+    wrap.appendChild(err);
+    drawColors(); drawPreview();
+    return wrap;
+  }
+
+  /** Square-crops and shrinks a photo on the phone so it uploads fast and fits the league's storage. */
+  function shrinkPhoto(fileObj) {
+    return new Promise(function (resolve, reject) {
+      var reader = new FileReader();
+      reader.onerror = reject;
+      reader.onload = function () {
+        var img = new Image();
+        img.onerror = reject;
+        img.onload = function () {
+          var sizes = [256, 200, 160, 128], q = [0.82, 0.75, 0.7, 0.65];
+          for (var i = 0; i < sizes.length; i++) {
+            var S = sizes[i], c = document.createElement('canvas'); c.width = S; c.height = S;
+            var side = Math.min(img.width, img.height), sx = (img.width - side) / 2, sy = (img.height - side) / 2;
+            c.getContext('2d').drawImage(img, sx, sy, side, side, 0, 0, S, S);
+            var url = c.toDataURL('image/jpeg', q[i]);
+            if (url.length <= 44000) return resolve(url);
+          }
+          reject(new Error('too big'));
+        };
+        img.src = reader.result;
+      };
+      reader.readAsDataURL(fileObj);
+    });
+  }
+
+  function openProfile(firstRun) {
+    var d = state.data, mine = profiles[d.player] || {};
+    var panel = sheetPanel(firstRun ? 'Set up your profile' : 'Your profile', firstRun ? 'Pick a photo or an emoji. The league sees it next to your name.' : d.player);
+    var current = { name: d.player, emoji: mine.emoji || (d.me && d.me.emoji) || '', color: mine.color || (d.me && d.me.color) || colorFor(d.player), photo: mine.photo || '' };
+    var pick = current;
+    panel.appendChild(profileEditor(current, function (st) { pick = st; }));
+    var saveErr = h('div', { class: 'err', role: 'alert' });
+    var save = h('button', { class: 'btn primary', type: 'button', style: 'width:100%;margin-top:12px', onclick: function () {
+      save.disabled = true; saveErr.textContent = '';
+      var before = profiles[d.player];
+      profiles[d.player] = { emoji: pick.emoji, color: pick.color, photo: pick.photo, tour: (before && before.tour) || '' };
+      api('profile.save', { emoji: pick.emoji, color: pick.color, photo: pick.photo }).then(function () {
+        d.me = d.me || {}; d.me.exists = true;
+        lsSet(LS.profiles, JSON.stringify({ v: 'local-' + Date.now(), token: state.token, map: profiles }));
+        closeSheet(); render(); afterLoad(); toast('Profile saved');
+      }).catch(function (e) { profiles[d.player] = before; save.disabled = false; saveErr.textContent = e.message; });
+    } }, firstRun ? 'Save and continue' : 'Save profile');
+    panel.appendChild(save); panel.appendChild(saveErr);
+    if (firstRun) return;
+
+    panel.appendChild(h('div', { class: 'section-title', text: 'Invite a friend' }));
+    panel.appendChild(inviteForm(false));
+    panel.appendChild(h('div', { class: 'section-title', text: 'App' }));
+    panel.appendChild(h('div', { class: 'stack' },
+      h('button', { class: 'btn secondary', type: 'button', onclick: function () { closeSheet(); startTour(); } }, 'Replay the tour')));
+    if (d.isAdmin) {
+      panel.appendChild(h('div', { class: 'section-title', text: 'League admin' }));
+      var adminBox = h('div', { class: 'stack' }, h('div', { class: 'skel', style: 'height:60px' }));
+      panel.appendChild(adminBox);
+      api('admin.list').then(function (list) { drawAdmin(adminBox, list); }).catch(function (e) { adminBox.textContent = e.message; });
+    }
+  }
+
+  function inviteForm(asAdmin, onDone) {
+    var name = h('input', { type: 'text', class: 'field', placeholder: 'First name', 'aria-label': 'Friend\'s first name', maxlength: '40', autocomplete: 'off' });
+    var email = h('input', { type: 'email', class: 'field', placeholder: 'name@example.com', 'aria-label': 'Friend\'s email', autocomplete: 'off' });
+    var note = asAdmin ? null : h('input', { type: 'text', class: 'field', placeholder: 'Note for Ryan (optional)', 'aria-label': 'Note for Ryan', maxlength: '200' });
+    var msg = h('div', { class: 'small', role: 'status' });
+    var btn = h('button', { class: 'btn primary', type: 'button', onclick: function () {
+      msg.className = 'small'; msg.textContent = '';
+      if (!name.value.trim()) { msg.className = 'err'; msg.textContent = 'Enter their first name.'; return; }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value.trim())) { msg.className = 'err'; msg.textContent = 'Enter a valid email.'; return; }
+      btn.disabled = true;
+      api(asAdmin ? 'admin.invite' : 'invite.request', { name: name.value.trim(), email: email.value.trim(), note: note ? note.value.trim() : '' })
+        .then(function (res) {
+          btn.disabled = false; name.value = ''; email.value = ''; if (note) note.value = '';
+          msg.className = 'small up'; msg.textContent = asAdmin ? 'Invite sent.' : (res.message || 'Sent to Ryan.');
+          if (onDone) onDone(res);
+        }).catch(function (e) { btn.disabled = false; msg.className = 'err'; msg.textContent = e.message; });
+    } }, asAdmin ? 'Send invite' : 'Ask Ryan to invite');
+    return h('div', { class: 'card stack' },
+      h('p', { class: 'muted small', style: 'margin:0', text: asAdmin ? 'They get an email with a one-time link to join. No approval needed.' : 'Ryan approves each new player. Your friend gets an email once he does.' }),
+      name, email, note, btn, msg);
+  }
+
+  function drawAdmin(box, list) {
+    box.textContent = '';
+    var redraw = function (res) { drawAdmin(box, res && res.list ? res.list : res); if (res && res.message) toast(res.message); };
+    var act = function (action, payload, btn) { btn.disabled = true; api(action, payload).then(redraw).catch(function (e) { btn.disabled = false; toast(e.message, true); }); };
+
+    box.appendChild(h('div', { class: 'pe-label', text: 'Invite a player' }));
+    box.appendChild(inviteForm(true, function () { api('admin.list').then(redraw); }));
+
+    box.appendChild(h('div', { class: 'pe-label', text: 'Requests waiting on you (' + list.requests.length + ')' }));
+    if (!list.requests.length) box.appendChild(h('div', { class: 'muted small', text: 'None right now.' }));
+    list.requests.forEach(function (r) {
+      var ok = h('button', { class: 'btn primary', type: 'button', onclick: function () { act('admin.approve', { id: r.id }, ok); } }, 'Approve');
+      var no = h('button', { class: 'btn secondary', type: 'button', onclick: function () { act('admin.decline', { id: r.id }, no); } }, 'Decline');
+      box.appendChild(h('div', { class: 'card' }, h('b', { text: r.invitedBy + ' wants to invite ' + r.name }), h('div', { class: 'muted small', text: r.email + ' · asked ' + r.created }),
+        r.note ? h('div', { class: 'small', style: 'margin-top:6px', text: '“' + r.note + '”' }) : null, h('div', { class: 'actions' }, ok, no)));
+    });
+
+    box.appendChild(h('div', { class: 'pe-label', text: 'Open invites (' + list.pending.length + ')' }));
+    if (!list.pending.length) box.appendChild(h('div', { class: 'muted small', text: 'None right now.' }));
+    list.pending.forEach(function (r) {
+      var re = h('button', { class: 'btn secondary', type: 'button', onclick: function () { act('admin.resend', { id: r.id }, re); } }, 'Resend');
+      var cx = h('button', { class: 'btn danger', type: 'button', onclick: function () { act('admin.cancel', { id: r.id }, cx); } }, 'Cancel');
+      box.appendChild(h('div', { class: 'card' }, h('b', { text: r.name }), h('div', { class: 'muted small', text: r.email + (r.status === 'expired' ? ' · expired' : ' · expires ' + r.expires) + ' · from ' + r.invitedBy }),
+        h('div', { class: 'actions' }, re, cx)));
+    });
+
+    box.appendChild(h('div', { class: 'pe-label', text: 'Players' }));
+    var unsent = list.players.filter(function (p) { return !p.switchSent && p.name !== state.data.player; }).length;
+    list.players.forEach(function (p) {
+      box.appendChild(h('div', { class: 'wk-row' }, h('div', { class: 'wk-main', style: 'display:flex;gap:10px;align-items:center' }, avatar(p.name),
+        h('div', null, h('div', { class: 'wk-pick', text: p.name }), h('div', { class: 'wk-sub', text: p.lastSeen ? 'Last opened ' + p.lastSeen : (p.switchSent ? 'App email sent · not opened yet' : 'Hasn\'t opened the app yet') })))));
+    });
+    var send = h('button', { class: 'btn ' + (unsent ? 'primary' : 'secondary'), type: 'button', onclick: function () { act('admin.switchover', {}, send); } },
+      unsent ? 'Send app emails to ' + unsent + (unsent === 1 ? ' player' : ' players') : 'App emails sent to everyone');
+    if (!unsent) send.disabled = true;
+    box.appendChild(send);
+  }
+
+  // ---------- welcome tour ----------
+  var TOUR = [
+    { sel: '.brand', title: 'Welcome to Mockingjay', text: 'Everyone starts with $10,000 of fake money. Biggest bankroll after the Super Bowl wins. May the odds…' },
+    { sel: '#funds', title: 'Your bankroll', text: 'What you have available to bet right now. Tap it to see your full bankroll and what\'s riding on open bets.' },
+    { sel: '.game', title: 'Pick a game', text: 'Tap any game to bet the moneyline, the spread, or the O/U total. You can stack more than one bet on the same game.', tab: 'picks' },
+    { sel: '#meter', title: '3 bets a week', text: 'You get 3 wagers per week. Each game locks at its own kickoff, and your line is locked the moment you bet.' },
+    { sel: '[data-tab="week"]', title: 'This Week', text: 'Your bets and how they\'re doing. Everyone else\'s picks appear here as each game kicks off.' },
+    { sel: '[data-tab="chat"]', title: 'Chat', text: 'Smack talk lives here. Group chat and notifications arrive in the next update.' },
+    { sel: '[data-tab="standings"]', title: 'Standings', text: 'The leaderboard, updated as games are graded. Tap a player to compare stats.' },
+    { sel: '[data-tab="stats"]', title: 'Stats', text: 'Your numbers against the league, or head to head with any player.' }
+  ];
+
+  function startTour() {
+    if (state.tourOn) return;
+    state.tourOn = true;
+    if (state.tab !== 'picks') go('picks');
+    var i = 0;
+    var layer = h('div', { class: 'tour', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'App tour' });
+    var spot = h('div', { class: 'tour-spot' });
+    var card = h('div', { class: 'tour-card' });
+    layer.appendChild(spot); layer.appendChild(card);
+    document.body.appendChild(layer);
+    function finish(stateName) {
+      state.tourOn = false; layer.remove(); window.removeEventListener('resize', place);
+      if (stateName === 'later') { sessionStorageSet('mj_tour_later', '1'); return; }
+      if (state.data && state.data.me) state.data.me.tour = stateName;
+      api('tour', { state: stateName }).catch(function () { /* will show again next time */ });
+    }
+    function place() {
+      var step = TOUR[i];
+      var el = document.querySelector(step.sel);
+      if (el) el.scrollIntoView({ block: 'nearest' });
+      var r = el ? el.getBoundingClientRect() : { left: window.innerWidth / 2, top: window.innerHeight / 3, width: 0, height: 0 };
+      var pad = 6;
+      spot.style.left = (r.left - pad) + 'px'; spot.style.top = (r.top - pad) + 'px';
+      spot.style.width = (r.width + pad * 2) + 'px'; spot.style.height = (r.height + pad * 2) + 'px';
+      var below = r.top + r.height / 2 < window.innerHeight / 2;
+      card.style.top = below ? Math.min(window.innerHeight - 260, r.top + r.height + 18) + 'px' : '';
+      card.style.bottom = below ? '' : (window.innerHeight - r.top + 18) + 'px';
+      card.textContent = '';
+      var dots = h('div', { class: 'tour-dots', 'aria-label': 'Step ' + (i + 1) + ' of ' + TOUR.length });
+      TOUR.forEach(function (_, k) { dots.appendChild(h('i', { class: k === i ? 'on' : '' })); });
+      card.appendChild(h('div', { class: 'tour-step', text: (i + 1) + ' of ' + TOUR.length }));
+      card.appendChild(h('h3', { text: step.title }));
+      card.appendChild(h('p', { text: step.text }));
+      card.appendChild(dots);
+      card.appendChild(h('div', { class: 'actions' },
+        i > 0 ? h('button', { class: 'btn secondary', type: 'button', onclick: function () { i--; place(); } }, 'Back') : null,
+        h('button', { class: 'btn primary', type: 'button', onclick: function () { if (i < TOUR.length - 1) { i++; place(); } else finish('done'); } }, i < TOUR.length - 1 ? 'Next' : 'Let\'s go')));
+      card.appendChild(h('div', { class: 'tour-skip' },
+        h('button', { type: 'button', onclick: function () { finish('later'); } }, 'Skip for now'),
+        h('button', { type: 'button', onclick: function () { finish('never'); } }, 'Don\'t show again')));
+    }
+    window.addEventListener('resize', place);
+    setTimeout(place, 60);
+  }
+
+  // ---------- joining from an invite ----------
+  function renderJoin(code) {
+    document.body.classList.add('bare');
+    $('weekbar').hidden = true;
+    var v = $('view'); v.textContent = '';
+    v.appendChild(h('div', { class: 'skel' }));
+    fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'join.lookup', code: code }) })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        if (!j.ok) throw new Error(j.error);
+        var info = j.data;
+        v.textContent = '';
+        var nameIn = h('input', { type: 'text', class: 'field', maxlength: '20', value: info.name, 'aria-label': 'Your name in the league' });
+        var pick = { emoji: '🏈', color: info.colors[0], photo: '' };
+        var err = h('div', { class: 'err', role: 'alert' });
+        var btn = h('button', { class: 'btn primary', type: 'button', style: 'width:100%;margin-top:12px', onclick: function () {
+          err.textContent = '';
+          if (!/^[A-Za-zÀ-ÿ0-9][A-Za-zÀ-ÿ0-9 .'\-]{0,19}$/.test(nameIn.value.trim())) { err.textContent = 'Use 1-20 letters, numbers or spaces.'; return; }
+          btn.disabled = true; btn.textContent = 'Joining…';
+          fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'join.accept', code: code, name: nameIn.value.trim(), emoji: pick.emoji, color: pick.color, photo: pick.photo }) })
+            .then(function (r) { return r.json(); })
+            .then(function (j2) {
+              if (!j2.ok) throw new Error(j2.error);
+              lsSet(LS.token, j2.data.token);
+              location.replace(location.pathname + '?t=' + j2.data.token + '&welcome=1');
+            }).catch(function (e) { btn.disabled = false; btn.textContent = 'Join the league'; err.textContent = e.message; });
+        } }, 'Join the league');
+        v.appendChild(h('div', { class: 'lead', style: 'margin-top:12px' },
+          h('div', { class: 'eyebrow', text: 'You\'re invited' }),
+          h('h2', { text: info.invitedBy + ' invited you to Mockingjay' }),
+          h('p', { text: 'Start with ' + money(info.start, { whole: true }) + ' in fake money. 3 bets a week. Biggest bankroll after the Super Bowl wins.' })));
+        v.appendChild(h('div', { class: 'section-title', text: 'Your name in the league' }));
+        v.appendChild(nameIn);
+        v.appendChild(h('div', { class: 'section-title', text: 'Your avatar' }));
+        v.appendChild(h('div', { class: 'card' }, profileEditor({ name: info.name, emoji: pick.emoji, color: pick.color }, function (st) { pick = st; })));
+        v.appendChild(btn); v.appendChild(err);
+      }).catch(function (e) {
+        v.textContent = '';
+        v.appendChild(h('div', { class: 'empty' }, h('h2', { text: 'Invite not available' }), h('p', { text: e.message })));
+      });
+  }
+
+  // ---------- lost link ----------
+  function lostLinkCard() {
+    var email = h('input', { type: 'email', class: 'field', placeholder: 'name@example.com', 'aria-label': 'Your email', autocomplete: 'email' });
+    var msg = h('div', { class: 'small', role: 'status' });
+    var btn = h('button', { class: 'btn secondary', type: 'button', onclick: function () {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value.trim())) { msg.className = 'err'; msg.textContent = 'Enter the email you use for the league.'; return; }
+      btn.disabled = true;
+      fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'recover', email: email.value.trim() }) })
+        .then(function (r) { return r.json(); })
+        .then(function (j) { msg.className = 'small up'; msg.textContent = j.ok ? j.data.message : j.error; })
+        .catch(function () { msg.className = 'err'; msg.textContent = 'Couldn\'t reach the league. Try again.'; btn.disabled = false; });
+    } }, 'Email me my link');
+    return h('div', { class: 'card stack', style: 'text-align:left;margin-top:16px' }, h('b', { text: 'Lost your link?' }),
+      h('p', { class: 'muted small', style: 'margin:0', text: 'Enter your email and we\'ll send it again. Open it on this phone.' }), email, btn, msg);
+  }
+
+  // ---------- update check ----------
+  /** If a newer app version is live, reload once so nobody runs an old copy. */
+  function checkForUpdate() {
+    var mine = (document.querySelector('script[src^="app.js"]') || {}).getAttribute ? document.querySelector('script[src^="app.js"]').getAttribute('src') : '';
+    fetch('index.html?check=' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.text(); }).then(function (html) {
+      var m = html.match(/src="(app\.js\?v=[^"]+)"/);
+      if (m && mine && m[1] !== mine && sessionStorageGet('mj_reloaded') !== m[1]) {
+        sessionStorageSet('mj_reloaded', m[1]);
+        location.reload();
+      }
+    }).catch(function () { /* offline: try next time */ });
+  }
+
   // ---------- navigation ----------
   function go(tab) {
     state.tab = tab; lsSet(LS.tab, tab);
@@ -607,7 +966,7 @@
   $('refresh').addEventListener('click', function () { load(); });
   $('funds').addEventListener('click', function () {
     var f = state.data && state.data.funds; if (!f) return;
-    toast('Bankroll ' + money(f.bankroll, { cents: true }) + ' · ' + money(f.open, { cents: true }) + ' in open bets');
+    toast('Bankroll ' + money(f.bankroll, { cents: true }) + ' − ' + money(f.open, { cents: true }) + ' in play = ' + money(f.available, { cents: true }) + ' available');
   });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !$('sheet').hidden) closeSheet(); });
   document.addEventListener('visibilitychange', function () {
@@ -619,11 +978,16 @@
   var savedTab = lsGet(LS.tab);
   if (savedTab && /^(picks|week|chat|standings|stats)$/.test(savedTab)) state.tab = savedTab;
   state.opp = lsGet(LS.opp) || null;
+  $('me').addEventListener('click', function () { if (state.data) openProfile(false); });
+  setTimeout(checkForUpdate, 1500);
+  var joinCode = new URLSearchParams(location.search).get('join');
+  if (joinCode && /^[A-Za-z0-9]{32,80}$/.test(joinCode)) { renderJoin(joinCode); return; }
   if (!state.token) { renderNoToken(); return; }
   try {
     var cached = JSON.parse(lsGet(LS.cache) || 'null');
     if (cached && cached.token === state.token && cached.data && cached.data.player) { state.data = cached.data; }
   } catch (e) { /* ignore bad cache */ }
   render();
+  if (state.data) afterLoad();
   load({ quiet: !!state.data });
 })();

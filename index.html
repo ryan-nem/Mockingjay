@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src https://script.google.com https://script.googleusercontent.com; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://script.google.com https://script.googleusercontent.com; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="theme-color" content="#0F1318">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -17,7 +17,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&display=swap">
-<link rel="stylesheet" href="app.css?v=3">
+<link rel="stylesheet" href="app.css?v=9">
 </head>
 <body>
 <div id="app">
@@ -29,10 +29,14 @@
         <p class="tagline">May the odds…</p>
       </div>
     </div>
+    <div class="top-right">
+    <button class="me" id="me" type="button" aria-label="Your profile" hidden></button>
     <button class="funds" id="funds" type="button" aria-label="Your bankroll">
       <span class="funds-label">Available</span>
       <span class="funds-value" id="funds-value">—</span>
+      <span class="funds-sub" id="funds-sub" hidden></span>
     </button>
+    </div>
   </header>
   <div class="weekbar" id="weekbar" hidden>
     <span id="week-label"></span>
@@ -68,6 +72,6 @@
 <div id="sheet" class="sheet" hidden></div>
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 <script src="config.js?v=1"></script>
-<script src="app.js?v=7"></script>
+<script src="app.js?v=9"></script>
 </body>
 </html>

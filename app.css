@@ -204,3 +204,36 @@ main { padding: 0 14px calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 24px
 .toast.bad { background: var(--red); color: #fff; }
 
 @media (min-width: 640px) { main, .weekbar { max-width: 620px; margin: 0 auto; } .top { padding-left: max(18px, calc(50vw - 300px)); padding-right: max(18px, calc(50vw - 300px)); } }
+
+/* ---------- Round 2A: profile, avatars, tour, forms ---------- */
+.top-right { display: flex; align-items: center; gap: 8px; }
+.me { background: none; border: 0; padding: 0; cursor: pointer; border-radius: 50%; }
+.avatar { position: relative; overflow: hidden; line-height: 1; }
+.avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.visually-hidden { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.field { width: 100%; background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; font: inherit; font-size: 16px; outline: none; }
+.field:focus { border-color: var(--mint); }
+.pe { margin-top: 12px; }
+.pe-top { display: flex; align-items: center; gap: 16px; }
+.pe-actions { display: flex; flex-direction: column; gap: 8px; flex: 1; }
+.pe-label { font-size: 13px; color: var(--muted); font-weight: 600; margin: 16px 0 8px; }
+.emoji-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; }
+.emoji { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; font-size: 22px; height: 44px; cursor: pointer; }
+.emoji-input { grid-column: span 6; background: var(--panel); color: var(--text); border: 1px dashed var(--line); border-radius: 10px; padding: 10px; font-size: 18px; text-align: center; }
+.color-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.swatch { width: 36px; height: 36px; border-radius: 18px; border: 3px solid transparent; cursor: pointer; }
+.swatch[aria-pressed="true"] { border-color: var(--text); }
+.tour { position: fixed; inset: 0; z-index: 40; }
+.tour-spot { position: fixed; border-radius: 14px; box-shadow: 0 0 0 9999px rgba(5, 8, 12, 0.78); border: 2px solid var(--mint); transition: all .35s ease; pointer-events: none; }
+.tour-card { position: fixed; left: 14px; right: 14px; max-width: 520px; margin: 0 auto; background: var(--panel); border: 1px solid var(--mint-shadow); border-radius: 18px; padding: 16px; transition: top .35s ease, bottom .35s ease; }
+.tour-card h3 { margin: 2px 0 6px; font-family: var(--display); font-size: 20px; }
+.tour-card p { margin: 0; color: var(--muted); font-size: 15px; }
+.tour-step { font-size: 12px; font-weight: 700; color: var(--mint); letter-spacing: .6px; text-transform: uppercase; }
+.tour-dots { display: flex; gap: 6px; margin: 12px 0 2px; }
+.tour-dots i { width: 7px; height: 7px; border-radius: 4px; background: var(--line); display: block; }
+.tour-dots i.on { background: var(--mint); width: 18px; }
+.tour-skip { display: flex; justify-content: space-between; margin-top: 10px; }
+.tour-skip button { background: none; border: 0; color: var(--muted); font-size: 14px; padding: 6px 2px; cursor: pointer; }
+
+.funds-sub { font-size: 11px; color: var(--muted); margin-top: 1px; }
+body.bare .top-right, body.bare .tabbar { display: none !important; }
