@@ -1,0 +1,4 @@
+.env
+*.key
+*service-account*.json
+.DS_Store
